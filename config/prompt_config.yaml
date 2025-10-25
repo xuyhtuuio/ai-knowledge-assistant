@@ -1,0 +1,143 @@
+# Prompt模板配置文件
+
+# 意图识别System Prompt
+intent_recognition_system: |
+  你是一个意图识别和实体抽取专家。请分析用户输入，并以JSON格式返回意图和实体。
+
+  可能的意图类型：
+  - Query_Asset: 查询资产详情
+  - Query_Scenario: 咨询场景信息
+  - Query_Hotspot: 了解热点内容
+  - Find_Relationship: 查找实体之间的关联关系
+  - OOD: 域外问题或闲聊
+
+  可能的实体类型：
+  - Asset: 资产名称
+  - Scenario: 场景名称
+  - Hotspot: 热点名称
+  - Attribute: 属性（如负责人、版本号、状态等）
+
+  输出格式示例：
+  {"intent": "Find_Relationship", "entities": [{"type": "Asset", "value": "XX系统"}, {"type": "Scenario", "value": "新员工入职"}]}
+
+# 答案生成System Prompt
+answer_generation_system: |
+  你是一个企业级AI知识助手。请严格根据下方提供的[知识库上下文]回答用户问题。
+
+  重要规则：
+  1. 只使用[知识库上下文]中提供的信息，不要使用上下文之外的知识
+  2. 如果上下文中没有相关信息，请明确告知用户"知识库中暂无相关信息"
+  3. 回答要准确、简洁、专业
+  4. 不要编造信息或进行猜测
+  5. 可以适当组织语言，但不要改变事实内容
+
+# 答案生成Prompt模板
+answer_generation_template: |
+  [System]
+  {system_prompt}
+
+  [知识库上下文]
+  {context}
+
+  [User]
+  {user_query}
+
+  [Assistant]
+
+# GraphRAG上下文格式化模板
+graph_context_template: |
+  根据知识图谱检索结果：
+
+  {graph_results}
+
+# OOD兜底回复模板
+ood_response_template: |
+  [System]
+  你是一个企业级AI知识助手，专注于回答资产、场景、热点相关的问题。
+
+  [User]
+  {user_query}
+
+  [Assistant]
+  您好！我是企业知识助手，专注于帮您查询资产、场景和热点相关信息。您刚才的问题似乎不在我的知识范围内。
+
+  我可以帮您：
+  - 查询资产详情和负责人信息
+  - 了解业务场景的流程和要求
+  - 获取最新的行业热点和政策解读
+  - 查找资产、场景、热点之间的关联关系
+
+  请问您有什么相关问题吗？
+
+# 数据增强 - 同义改写Prompt
+paraphrase_prompt: |
+  请将下面的用户查询改写成10个不同的表达方式，保持原意不变，但使用不同的词汇和句式。
+  要求：
+  1. 包含口语化、正式、简洁、详细等多种风格
+  2. 保留原句中的关键实体名称
+  3. 每行一个改写结果
+
+  原始查询：{original_query}
+
+  改写结果：
+
+# 关系抽取Prompt（用于图谱构建）
+relation_extraction_prompt: |
+  请分析以下文本，抽取其中提到的实体及其关系。
+
+  实体类型：资产(Asset)、场景(Scenario)、热点(Hotspot)
+  关系类型：使用(USED_IN)、影响(IMPACTS)、相关(RELATED_TO)、提及(MENTIONS)
+
+  文本：{text}
+
+  请以JSON格式返回：
+  {
+    "entities": [{"type": "Asset", "name": "XX系统", "properties": {...}}],
+    "relations": [{"source": "XX系统", "target": "新员工入职", "type": "USED_IN", "properties": {...}}]
+  }
+
+# Cypher查询生成Prompt模板
+cypher_generation_prompts:
+  Query_Asset: |
+    根据以下意图和实体，生成Neo4j Cypher查询语句：
+
+    意图：查询资产
+    实体：{entities}
+
+    示例：
+    MATCH (a:Asset {name: "XX系统"})
+    RETURN a.name, a.description, a.owner, a.type
+
+  Query_Scenario: |
+    根据以下意图和实体，生成Neo4j Cypher查询语句：
+
+    意图：查询场景
+    实体：{entities}
+
+    示例：
+    MATCH (s:Scenario {name: "新员工入职"})
+    RETURN s.name, s.description, s.business_domain
+
+  Query_Hotspot: |
+    根据以下意图和实体，生成Neo4j Cypher查询语句：
+
+    意图：查询热点
+    实体：{entities}
+
+    示例：
+    MATCH (h:Hotspot {title: "数据安全法更新"})
+    RETURN h.title, h.summary, h.publish_date, h.source
+
+  Find_Relationship: |
+    根据以下意图和实体，生成Neo4j Cypher查询语句：
+
+    意图：查找关联关系
+    实体：{entities}
+
+    示例（资产在场景中的应用）：
+    MATCH (s:Scenario {name: "新员工入职"}) -[:INCLUDES_USAGE]-> (u:AssetUsage) <-[:IS_USED_IN]- (a:Asset)
+    RETURN a.name, a.description, u.role, u.status
+
+    示例（热点对资产的影响）：
+    MATCH (h:Hotspot {title: "数据安全法更新"}) -[r:DIRECTLY_IMPACTS]-> (a:Asset {name: "客户关系管理系统"})
+    RETURN a.name, h.title, r.description

@@ -1,0 +1,172 @@
+# AI知识助手 - 主配置文件
+
+# 系统配置
+system:
+  name: "AI知识助手"
+  version: "1.0.0"
+  environment: "development"  # development, staging, production
+  log_level: "INFO"
+  log_dir: "./logs"
+
+# 模型配置
+models:
+  # 意图识别专家模型 (Qwen3-32B SFT)
+  intent_recognition:
+    model_name: "Qwen/Qwen2.5-32B-Instruct"
+    model_path: "./models/intent_recognition/qwen3-32b-sft"
+    device: "cuda"
+    max_length: 512
+    temperature: 0.1  # 低温度，提高输出稳定性
+    top_p: 0.9
+    use_cot: false  # 关闭思考链模式
+    batch_size: 1
+
+  # 答案生成模型 (Qwen3-14B)
+  answer_generation:
+    model_name: "Qwen/Qwen2.5-14B-Instruct"
+    model_path: "./models/answer_generation/qwen3-14b"
+    device: "cuda"
+    max_length: 2048
+    temperature: 0.3  # 适中温度，平衡创造性和准确性
+    top_p: 0.95
+    use_cot: false  # 关闭思考链模式
+    batch_size: 1
+
+# 数据配置
+data:
+  # 原始数据路径
+  raw:
+    assets: "./data/raw/assets"
+    scenarios: "./data/raw/scenarios"
+    hotspots: "./data/raw/hotspots"
+    relationships: "./data/raw/relationships"
+
+  # 处理后数据路径
+  processed:
+    intent_dataset: "./data/processed/intent_dataset"
+    graph_data: "./data/processed/graph_data"
+
+  # 标注数据路径
+  annotated: "./data/annotated"
+
+  # 增强数据路径
+  augmented: "./data/augmented"
+
+# 意图标签配置
+intent_labels:
+  - "Query_Asset"          # 查询资产
+  - "Query_Scenario"       # 咨询场景
+  - "Query_Hotspot"        # 了解热点
+  - "Find_Relationship"    # 查找关联关系
+  - "OOD"                  # 域外问题
+
+# 实体标签配置
+entity_labels:
+  - "Asset"       # 资产名称
+  - "Scenario"    # 场景名称
+  - "Hotspot"     # 热点名称
+  - "Attribute"   # 属性
+
+# 知识图谱配置
+graph:
+  database: "neo4j"  # neo4j, nebula
+  neo4j:
+    uri: "bolt://localhost:7687"
+    user: "neo4j"
+    password: "your_password"
+    database: "neo4j"
+
+  # 图谱Schema
+  schema:
+    nodes:
+      - "Asset"
+      - "Scenario"
+      - "Hotspot"
+      - "Keyword"
+      - "AssetUsage"
+      - "AssetCategory"
+      - "ScenarioCategory"
+
+    relationships:
+      - "BELONGS_TO"
+      - "MENTIONS"
+      - "HAS_KEYWORD"
+      - "DIRECTLY_IMPACTS"
+      - "RELATED_TO"
+      - "INCLUDES_USAGE"
+      - "IS_USED_IN"
+
+# 数据增强配置
+data_augmentation:
+  # 同义改写
+  paraphrasing:
+    enabled: true
+    model: "Qwen/Qwen2.5-32B-Instruct"
+    num_variations: 10  # 每条样本生成10个变体
+
+  # 实体置换
+  entity_permutation:
+    enabled: true
+    max_samples: 10000  # 最多生成样本数
+
+  # 负样本生成
+  negative_sampling:
+    enabled: true
+    ood_ratio: 0.3  # OOD样本占比30%
+    hard_negative_ratio: 0.1  # 困难负样本占比10%
+
+# SFT训练配置
+training:
+  intent_recognition:
+    output_dir: "./models/intent_recognition/checkpoints"
+    num_epochs: 10
+    batch_size: 4
+    learning_rate: 2e-5
+    warmup_steps: 100
+    save_steps: 500
+    eval_steps: 100
+    use_qlora: true  # 使用QLoRA 4-bit量化
+    lora_r: 64
+    lora_alpha: 16
+    lora_dropout: 0.1
+    target_modules: ["q_proj", "k_proj", "v_proj", "o_proj"]
+
+# API配置
+api:
+  host: "0.0.0.0"
+  port: 8000
+  workers: 4
+  timeout: 120
+  max_concurrent_requests: 100
+
+# 向量检索配置（可选，用于混合检索）
+vector_search:
+  enabled: false
+  engine: "faiss"  # faiss, milvus, qdrant
+  embedding_model: "BAAI/bge-large-zh-v1.5"
+  dimension: 1024
+  index_type: "HNSW"
+
+# 缓存配置
+cache:
+  enabled: true
+  backend: "redis"  # redis, memory
+  redis:
+    host: "localhost"
+    port: 6379
+    db: 0
+    password: ""
+    expire_time: 3600  # 1小时过期
+
+# 监控配置
+monitoring:
+  enabled: true
+  metrics_port: 9090
+  prometheus_enabled: true
+
+# 数据回流配置
+feedback_loop:
+  enabled: true
+  auto_collect: true  # 自动收集用户反馈
+  threshold_score: 3.0  # 低于3分的回答自动进入待标注池
+  review_queue_path: "./data/annotated/review_queue.jsonl"
