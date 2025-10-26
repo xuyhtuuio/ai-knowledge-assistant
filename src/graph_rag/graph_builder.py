@@ -207,49 +207,49 @@ class GraphBuilder:
                 "FOR (a:Asset) REQUIRE a.asset_id IS UNIQUE"
             )
 
-            # 字段节点约束（槽位3: FieldName）【新增】
+            # 字段节点约束（槽位3: FieldName）
             session.run(
                 "CREATE CONSTRAINT field_id_unique IF NOT EXISTS "
                 "FOR (f:Field) REQUIRE f.field_id IS UNIQUE"
             )
 
-            # 业务域节点约束（槽位5: BusinessDomain）【新增】
+            # 业务域节点约束（槽位5: BusinessDomain）
             session.run(
                 "CREATE CONSTRAINT domain_id_unique IF NOT EXISTS "
                 "FOR (d:BusinessDomain) REQUIRE d.domain_id IS UNIQUE"
             )
 
-            # 业务专区节点约束（槽位7: BusinessZone）【新增】
+            # 业务专区节点约束（槽位7: BusinessZone）
             session.run(
                 "CREATE CONSTRAINT zone_id_unique IF NOT EXISTS "
                 "FOR (z:BusinessZone) REQUIRE z.zone_id IS UNIQUE"
             )
 
-            # 场景节点约束（保留，用于BusinessZone的子节点）
+            # 场景节点约束（用于BusinessZone的子节点）
             session.run(
                 "CREATE CONSTRAINT scenario_id_unique IF NOT EXISTS "
                 "FOR (s:Scenario) REQUIRE s.scenario_id IS UNIQUE"
             )
 
-            # 业务概念节点约束（槽位4: CoreDataItem）【新增】
+            # 业务概念节点约束（槽位4: CoreDataItem）
             session.run(
                 "CREATE CONSTRAINT concept_id_unique IF NOT EXISTS "
                 "FOR (c:Concept) REQUIRE c.concept_id IS UNIQUE"
             )
 
-            # 用户节点约束（槽位9: UserStatus）【新增】
+            # 用户节点约束（槽位9: UserStatus）
             session.run(
                 "CREATE CONSTRAINT user_id_unique IF NOT EXISTS "
                 "FOR (u:User) REQUIRE u.user_id IS UNIQUE"
             )
 
-            # 组织节点约束（槽位10: OrgName/UserName）【新增】
+            # 组织节点约束（槽位10: OrgName/UserName）
             session.run(
                 "CREATE CONSTRAINT org_id_unique IF NOT EXISTS "
                 "FOR (o:Org) REQUIRE o.org_id IS UNIQUE"
             )
 
-            # 热点节点约束（保留，但可能在数据资产场景中不常用）
+            # 热点节点约束（但可能在数据资产场景中不常用）
             session.run(
                 "CREATE CONSTRAINT hotspot_id_unique IF NOT EXISTS "
                 "FOR (h:Hotspot) REQUIRE h.hotspot_id IS UNIQUE"

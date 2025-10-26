@@ -100,13 +100,13 @@ graph:
     nodes:
       # 核心节点
       - "Asset"              # 资产节点（槽位1: AssetName）
-      - "Field"              # 字段节点（槽位3: FieldName）【新增】
-      - "BusinessDomain"     # 业务域节点（槽位5: BusinessDomain）【新增】
-      - "BusinessZone"       # 业务专区节点（槽位7: BusinessZone）【新增】
+      - "Field"              # 字段节点（槽位3: FieldName）
+      - "BusinessDomain"     # 业务域节点（槽位5: BusinessDomain）
+      - "BusinessZone"       # 业务专区节点（槽位7: BusinessZone）
       - "Scenario"           # 场景节点（保留，作为BusinessZone的子节点）
-      - "Concept"            # 业务概念节点（槽位4: CoreDataItem）【新增】
-      - "User"               # 用户节点（槽位9: UserStatus）【新增】
-      - "Org"                # 组织节点（槽位10: OrgName/UserName）【新增】
+      - "Concept"            # 业务概念节点（槽位4: CoreDataItem）
+      - "User"               # 用户节点（槽位9: UserStatus）
+      - "Org"                # 组织节点（槽位10: OrgName/UserName）
       
       # 辅助节点
       - "Hotspot"            # 热点节点（保留）
@@ -115,21 +115,20 @@ graph:
 
     relationships:
       # 核心关系
-      - "HAS_FIELD"          # Asset -> Field（资产包含字段）【新增】
+      - "HAS_FIELD"          # Asset -> Field（资产包含字段）
       - "BELONGS_TO"         # Asset -> BusinessDomain（资产属于业务域）
-      - "CONTAINS_SCENARIO"  # BusinessZone -> Scenario（专区包含场景）【新增】
-      - "USES_ASSET"         # Scenario -> Asset（场景使用资产）【新增】
-      - "IMPLEMENTED_BY"     # Concept -> Asset（业务概念由资产实现）【新增】
-      - "MAPPED_TO"          # Concept -> Field（业务概念映射到字段）【新增】
+      - "CONTAINS_SCENARIO"  # BusinessZone -> Scenario（专区包含场景）
+      - "USES_ASSET"         # Scenario -> Asset（场景使用资产）
+      - "IMPLEMENTED_BY"     # Concept -> Asset（业务概念由资产实现）
+      - "MAPPED_TO"          # Concept -> Field（业务概念映射到字段）
       
-      # 用户关系（槽位9: UserStatus）【新增】
+      # 用户关系（槽位9: UserStatus）
       - "FAVORITED"          # User -> Asset（用户收藏资产）
       - "SUBSCRIBED"         # User -> Asset（用户订阅资产）
       - "CREATED"            # User -> Asset（用户创建资产）
       - "MANAGED_BY"         # Asset -> User（资产管理者）
       - "OWNED_BY"           # Asset -> Org（资产所属组织）
       
-      # 保留的关系
       - "MENTIONS"           # Hotspot -> Keyword
       - "HAS_KEYWORD"        # Asset/Scenario -> Keyword
       - "DIRECTLY_IMPACTS"   # Hotspot -> Asset
@@ -193,15 +192,15 @@ vector_search:
   index_type: "HNSW"
 
 # 缓存配置
-cache:
-  enabled: true
-  backend: "redis"  # redis, memory
-  redis:
-    host: "localhost"
-    port: 6379
-    db: 0
-    password: ""
-    expire_time: 3600  # 1小时过期
+# cache:
+#   enabled: true
+#   backend: "redis"  # redis, memory
+#   redis:
+#     host: "localhost"
+#     port: 6379
+#     db: 0
+#     password: ""
+#     expire_time: 3600  # 1小时过期
 
 # 监控配置
 monitoring:

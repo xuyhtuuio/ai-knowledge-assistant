@@ -244,7 +244,7 @@ class Orchestrator:
     def _get_intent_name(self, intent: IntentType) -> str:
         """
         获取意图的中文名称
-        【新增】支持8大意图的名称映射
+       
         """
         intent_names = {
             IntentType.ASSET_BASIC_SEARCH: "资产基础检索",

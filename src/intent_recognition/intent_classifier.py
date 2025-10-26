@@ -110,7 +110,7 @@ class IntentClassifier:
             # 尝试直接解析JSON
             result = json.loads(output_text)
             
-            # 【新增】如果是slots格式，转换为entities格式
+            # 如果是slots格式，转换为entities格式
             if "slots" in result and "entities" not in result:
                 result = self._convert_slots_to_entities(result)
             
@@ -127,7 +127,7 @@ class IntentClassifier:
                     json_str = output_text[start_idx:end_idx + 1]
                     result = json.loads(json_str)
                     
-                    # 【新增】格式转换
+                    # 格式转换
                     if "slots" in result and "entities" not in result:
                         result = self._convert_slots_to_entities(result)
                     
