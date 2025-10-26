@@ -142,13 +142,7 @@ class GraphQuery:
             
             
             
-            if '五星' in filter_cond:
-                conditions.append('a.star_level = "五星"')
-            elif '>' in filter_cond or '<' in filter_cond:
-                # 简单解析数值条件
-                conditions.append(f'a.value_score {filter_cond.split("价值评估")[1].strip()}')
-        
-        where_clause = " AND ".join(conditions) if conditions else "1=1"
+  
         
         # 槽位5: BusinessDomain
         if 'BusinessDomain' in slots:

@@ -1,9 +1,8 @@
 """
 数据增强模块
-实现三种数据扩充策略：
-1. 基于LLM的同义改写 (Paraphrasing)
-2. 基于目录的实体置换 (Entity Permutation)
-3. 系统性的负样本与边界样本生成 (Negative Sampling)
+
+1. 基于LLM的同义改写 
+2. 系统性的负样本生成
 """
 
 import json
@@ -165,76 +164,6 @@ class DataAugmentation:
         logger.info(f"生成了 {len(variations)} 个同义改写变体")
         return variations[:num_variations]
 
-    def permutate_entities(self,
-                          template_samples: List[Dict],
-                          entity_catalog: Dict[str, List[str]]) -> List[Dict]:
-        """
-        策略二：基于目录的实体置换
-
-        Args:
-            template_samples: 模板样本列表
-            entity_catalog: 实体目录 {"Asset": [...], "Scenario": [...], "Hotspot": [...]}
-
-        Returns:
-            增强后的样本列表
-        """
-        augmented_samples = []
-
-        for template in template_samples:
-            original_query = template['messages'][1]['content']
-            original_response = json.loads(template['messages'][2]['content'])
-            
-            intent = original_response['intent']
-            entities = original_response['entities']
-
-            # 对每个实体类型进行置换
-            for entity_info in entities:
-                entity_type = entity_info['type']
-                
-                if entity_type in entity_catalog:
-                    available_entities = entity_catalog[entity_type]
-                    
-                    # 为每个可用实体生成一个新样本
-                    for new_entity_value in available_entities:
-                        # 替换查询中的实体
-                        new_query = original_query.replace(
-                            entity_info['value'],
-                            new_entity_value
-                        )
-                        
-                        # 替换实体列表中的值
-                        new_entities = []
-                        for e in entities:
-                            new_e = e.copy()
-                            if e['type'] == entity_type:
-                                new_e['value'] = new_entity_value
-                            new_entities.append(new_e)
-                        
-                        # 创建新样本
-                        new_sample = {
-                            "messages": [
-                                {
-                                    "role": "system",
-                                    "content": "你是一个意图识别和实体抽取专家。请分析用户输入，并以JSON格式返回意图和实体。"
-                                },
-                                {
-                                    "role": "user",
-                                    "content": new_query
-                                },
-                                {
-                                    "role": "assistant",
-                                    "content": json.dumps({
-                                        "intent": intent,
-                                        "entities": new_entities
-                                    }, ensure_ascii=False)
-                                }
-                            ]
-                        }
-                        augmented_samples.append(new_sample)
-
-        logger.info(f"通过实体置换生成了 {len(augmented_samples)} 个样本")
-        return augmented_samples
-
     def generate_negative_samples(self, num_ood: int = 100, num_hard: int = 50) -> List[Dict]:
         """
         策略三：生成负样本
@@ -353,7 +282,6 @@ class DataAugmentation:
                        entity_catalog_file: Optional[str] = None,
                        output_file: str = "data/processed/training/augmented_train.jsonl",
                        use_paraphrase: bool = True,
-                       use_permutation: bool = True,
                        use_negative: bool = True,
                        paraphrase_count: int = 10) -> List[Dict]:
         """
@@ -364,20 +292,22 @@ class DataAugmentation:
             entity_catalog_file: 实体目录文件路径
             output_file: 输出文件路径
             use_paraphrase: 是否使用同义改写
-            use_permutation: 是否使用实体置换
             use_negative: 是否使用负样本
             paraphrase_count: 每个样本的改写数量
 
         Returns:
             增强后的完整数据集
         """
+        
+        
+        # 增强后的完整数据集
         all_samples = []
 
         # 添加原始样本
         all_samples.extend(original_samples)
         logger.info(f"原始样本数: {len(original_samples)}")
 
-        # 策略一：同义改写
+        # 同义改写
         if use_paraphrase and self.model is not None:
             logger.info("开始同义改写...")
             for sample in original_samples:
@@ -393,25 +323,8 @@ class DataAugmentation:
                         query, intent, entities, paraphrase_count
                     )
                     all_samples.extend(paraphrased)
-
-        # 策略二：实体置换
-        if use_permutation and entity_catalog_file:
-            logger.info("开始实体置换...")
-            
-            # 加载实体目录
-            with open(entity_catalog_file, 'r', encoding='utf-8') as f:
-                entity_catalog = json.load(f)
-            
-            # 只选择有实体的样本作为模板
-            template_samples = [
-                s for s in original_samples
-                if json.loads(s['messages'][2]['content']).get('entities')
-            ]
-            
-            permutated = self.permutate_entities(template_samples, entity_catalog)
-            all_samples.extend(permutated)
-
-        # 策略三：负样本生成
+                    
+        # 负样本生成
         if use_negative:
             logger.info("开始生成负样本...")
             negative = self.generate_negative_samples(num_ood=100, num_hard=50)

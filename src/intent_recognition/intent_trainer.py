@@ -146,9 +146,12 @@ class IntentTrainer:
 
         # 加载模型
         if self.training_config['use_qlora']:
-            # QLoRA: 4-bit量化
+            
             from transformers import BitsAndBytesConfig
 
+
+
+            # 4-bit量化, 量化类型为nf4, 计算类型为float16, 使用double量化
             bnb_config = BitsAndBytesConfig(
                 load_in_4bit=True,
                 bnb_4bit_quant_type="nf4",
@@ -225,23 +228,27 @@ class IntentTrainer:
 
         # 训练参数
         training_args = TrainingArguments(
-            output_dir=self.training_config['output_dir'],
-            num_train_epochs=self.training_config['num_epochs'],
-            per_device_train_batch_size=self.training_config['batch_size'],
-            per_device_eval_batch_size=self.training_config['batch_size'],
-            learning_rate=self.training_config['learning_rate'],
-            warmup_steps=self.training_config['warmup_steps'],
-            save_steps=self.training_config['save_steps'],
-            eval_steps=self.training_config['eval_steps'],
-            logging_steps=50,
-            save_total_limit=3,
-            load_best_model_at_end=True if eval_dataset else False,
-            evaluation_strategy="steps" if eval_dataset else "no",
-            fp16=True,
-            gradient_accumulation_steps=4,
-            gradient_checkpointing=True,
-            optim="paged_adamw_8bit" if self.training_config['use_qlora'] else "adamw_torch",
-            report_to=["tensorboard"]
+            output_dir=self.training_config['output_dir'],  # 模型检查点和日志的输出目录
+            num_train_epochs=self.training_config['num_epochs'],  # 训练的总轮数
+            per_device_train_batch_size=self.training_config['batch_size'],  # 每个设备(GPU)的训练批次大小
+            per_device_eval_batch_size=self.training_config['batch_size'],  # 每个设备(GPU)的验证批次大小
+            learning_rate=self.training_config['learning_rate'],  # 优化器的学习率
+            
+            warmup_steps=self.training_config['warmup_steps'],  # 学习率预热步数,逐步增加学习率以稳定训练
+            save_steps=self.training_config['save_steps'],  # 每隔多少步保存一次模型检查点
+            eval_steps=self.training_config['eval_steps'],  # 每隔多少步在验证集上评估一次
+            logging_steps=50,  # 每隔多少步记录一次训练日志(loss等指标)
+            save_total_limit=3,  # 最多保留3个检查点,自动删除旧的以节省磁盘空间
+            load_best_model_at_end=True if eval_dataset else False,  # 训练结束后是否加载验证集上表现最好的模型
+            evaluation_strategy="steps" if eval_dataset else "no",  # 评估策略:有验证集时按步数评估,否则不评估
+            fp16=True,  # 启用混合精度训练(FP16),可加速训练并减少显存占用
+            gradient_accumulation_steps=4,  # 梯度累积步数,每4步更新一次参数,等效于扩大4倍batch_size
+            gradient_checkpointing=True,  # 启用梯度检查点,以时间换空间,显著降低显存占用
+            
+            
+            # 这里因为是transfermer模型,所以需要使用8bit优化器节省显存,否则用标准AdamW
+            optim="paged_adamw_8bit" if self.training_config['use_qlora'] else "adamw_torch",  # 优化器选择:QLoRA用8bit优化器节省显存,否则用标准AdamW
+            report_to=["tensorboard"]  # 将训练指标报告到TensorBoard进行可视化
         )
 
         # 数据整理器

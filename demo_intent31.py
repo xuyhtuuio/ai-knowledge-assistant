@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Intent 31 (资产基础检索) 完整流程模拟
 
@@ -11,9 +10,7 @@ import json
 #  模拟大模型意图识别输出
 def simulate_llm_intent_recognition(user_query: str):
     """
-    模拟大模型对用户查询进行意图识别和槽位提取
-    
-    实际项目中，这里会调用Qwen3-32B SFT模型
+    模拟大模型对用户查询进行意图识别和槽位提取实际项目中，这里会调用Qwen3-32B SFT模型
     """
     
     # 定义几个测试用例

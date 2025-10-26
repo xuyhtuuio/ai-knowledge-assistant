@@ -104,6 +104,10 @@ class IntentClassifier:
 
         Returns:
             解析后的字典（统一转换为entities数组格式）
+            
+                例如： {"intent": "31", "slots": {"AssetType": "标签"}} 
+                
+                输出： {"intent": "31", "entities": [{"type": "AssetType", "value": "标签"}]}
         """
         try:
             # 尝试直接解析JSON
