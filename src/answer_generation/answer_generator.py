@@ -46,7 +46,6 @@ class AnswerGenerator:
         logger.info(f"初始化答案生成器，设备: {self.device}")
 
     def load_model(self):
-        """加载模型（延迟加载）"""
         if self.model is not None:
             return
 

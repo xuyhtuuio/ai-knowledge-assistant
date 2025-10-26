@@ -1,0 +1,6 @@
+source_asset_id,target_asset_id,lineage_type,transform_logic,update_frequency,data_volume
+A005,A001,数据依赖,从HR系统抽取员工基础信息到数据仓库,每日,10000
+A005,A003,数据依赖,从CRM系统同步客户数据到数据仓库,每小时,50000
+A008,A005,接口调用,数据接口服务从数据仓库读取数据,实时,N/A
+A001,A006,数据流转,员工薪资数据流转到财务系统,每月,1000
+

@@ -1,0 +1,10 @@
+user_id,name,role,org_id,email,phone
+U001,张三,数据管理员,ORG001,zhangsan@company.com,13800138001
+U002,李四,系统管理员,ORG002,lisi@company.com,13800138002
+U003,王五,业务分析师,ORG003,wangwu@company.com,13800138003
+U004,赵六,技术架构师,ORG004,zhaoliu@company.com,13800138004
+U005,孙七,数据工程师,ORG001,sunqi@company.com,13800138005
+U006,周八,财务分析师,ORG005,zhouba@company.com,13800138006
+U007,吴九,供应链专员,ORG006,wujiu@company.com,13800138007
+U008,郑十,接口开发工程师,ORG004,zhengshi@company.com,13800138008
+

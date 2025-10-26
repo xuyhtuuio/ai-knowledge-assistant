@@ -92,7 +92,7 @@ graph:
   neo4j:
     uri: "bolt://localhost:7687"
     user: "neo4j"
-    password: "your_password"
+    password: "neo4j123"
     database: "neo4j"
 
   #图谱Schema（支持10大槽位）

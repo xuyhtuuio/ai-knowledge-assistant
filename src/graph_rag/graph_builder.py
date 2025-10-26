@@ -544,7 +544,7 @@ class GraphBuilder:
         self.load_orgs(org_file)
         self.load_asset_domain_relationships(relationship_file)
         self.load_user_asset_relationships(relationship_file)
-        self.load_lineage_relationships(lineage_file)
+        # self.load_lineage_relationships(lineage_file)
         self.load_asset_scenario_relationships(asset_scenario_rel_file)
         self.load_hotspot_asset_relationships(hotspot_asset_rel_file)
 
@@ -563,7 +563,7 @@ class GraphBuilder:
         
         Args:
             field_file: 字段CSV文件路径
-            CSV格式：field_id, asset_id, name, data_type, description, business_definition, technical_definition
+            CSV格式：field_id, asset_id, name, data_type, description, is_primary, is_sensitive
         """
         logger.info(f"加载字段数据: {field_file}")
         df = pd.read_csv(field_file)
@@ -577,15 +577,15 @@ class GraphBuilder:
                     SET f.name = $name,
                         f.data_type = $data_type,
                         f.description = $description,
-                        f.business_definition = $business_definition,
-                        f.technical_definition = $technical_definition
+                        f.is_primary = $is_primary,
+                        f.is_sensitive = $is_sensitive
                     """,
                     field_id=row.get('field_id', ''),
                     name=row.get('name', ''),
-                    data_type=row.get('data_type', ''),
+                    data_type=str(row.get('data_type', '')),
                     description=row.get('description', ''),
-                    business_definition=row.get('business_definition', ''),
-                    technical_definition=row.get('technical_definition', '')
+                    is_primary=row.get('is_primary', False),
+                    is_sensitive=row.get('is_sensitive', False)
                 )
                 
                 # 创建Asset-Field关系
@@ -742,57 +742,64 @@ class GraphBuilder:
     
     def load_asset_domain_relationships(self, relationship_file: str):
         """
-        加载资产-业务域关系
+        加载通用关系文件中的各种关系
         
         Args:
-            relationship_file: 关系CSV文件路径
-            CSV格式：asset_id, domain_id
+            relationship_file: 通用关系CSV文件路径
+            CSV格式：source_type, source_id, target_type, target_id, relationship_type, properties
         """
-        logger.info(f"加载资产-业务域关系: {relationship_file}")
+        logger.info(f"加载通用关系: {relationship_file}")
         df = pd.read_csv(relationship_file)
         
+        count = 0
         with self.driver.session() as session:
             for _, row in df.iterrows():
-                session.run(
-                    """
-                    MATCH (a:Asset {asset_id: $asset_id})
-                    MATCH (d:BusinessDomain {domain_id: $domain_id})
-                    MERGE (a)-[:BELONGS_TO]->(d)
-                    """,
-                    asset_id=row['asset_id'],
-                    domain_id=row['domain_id']
-                )
+                source_type = row['source_type']
+                source_id = row['source_id']
+                target_type = row['target_type']
+                target_id = row['target_id']
+                rel_type = row['relationship_type']
+                
+                # 动态构建Cypher查询
+                query = f"""
+                    MATCH (s:{source_type})
+                    WHERE s.{self._get_id_field(source_type)} = $source_id
+                    MATCH (t:{target_type})
+                    WHERE t.{self._get_id_field(target_type)} = $target_id
+                    MERGE (s)-[r:{rel_type}]->(t)
+                """
+                
+                try:
+                    session.run(query, source_id=source_id, target_id=target_id)
+                    count += 1
+                except Exception as e:
+                    logger.warning(f"创建关系失败: {source_id} -> {target_id}, 错误: {str(e)}")
         
-        logger.info(f"成功创建 {len(df)} 个资产-业务域关系")
+        logger.info(f"成功创建 {count} 个关系")
+    
+    def _get_id_field(self, node_type: str) -> str:
+        """根据节点类型返回ID字段名"""
+        id_map = {
+            'Asset': 'asset_id',
+            'Field': 'field_id',
+            'BusinessDomain': 'domain_id',
+            'BusinessZone': 'zone_id',
+            'Scenario': 'scenario_id',
+            'Concept': 'concept_id',
+            'User': 'user_id',
+            'Org': 'org_id',
+            'Hotspot': 'hotspot_id'
+        }
+        return id_map.get(node_type, f"{node_type.lower()}_id")
     
     def load_user_asset_relationships(self, relationship_file: str):
         """
-        加载用户-资产关系（收藏、订阅等）
+        加载用户-资产关系（已由load_asset_domain_relationships处理）
         
         Args:
-            relationship_file: 关系CSV文件路径
-            CSV格式：user_id, asset_id, relationship_type(FAVORITED/SUBSCRIBED/CREATED), timestamp
+            relationship_file: 关系CSV文件路径（可忽略，已加载）
         """
-        logger.info(f"加载用户-资产关系: {relationship_file}")
-        df = pd.read_csv(relationship_file)
-        
-        with self.driver.session() as session:
-            for _, row in df.iterrows():
-                rel_type = row.get('relationship_type', 'FAVORITED')
-                
-                session.run(
-                    f"""
-                    MATCH (u:User {{user_id: $user_id}})
-                    MATCH (a:Asset {{asset_id: $asset_id}})
-                    MERGE (u)-[r:{rel_type}]->(a)
-                    SET r.timestamp = $timestamp
-                    """,
-                    user_id=row['user_id'],
-                    asset_id=row['asset_id'],
-                    timestamp=row.get('timestamp', '')
-                )
-        
-        logger.info(f"成功创建 {len(df)} 个用户-资产关系")
+        logger.info(f"用户-资产关系已通过通用关系文件加载，跳过")
     
 
     # 【TODO】血缘关系相关方法 
@@ -800,12 +807,12 @@ class GraphBuilder:
         """
         【TODO】加载血缘关系（Intent 34: 资产血缘关系查询）
         
-        需要实现：
         1. LineageEdge中间节点（存储血缘关系属性）
         2. 支持多级递归查询（可能5-10级）
         3. 支持字段级血缘
         4. DAG结构验证（检测环路）
         
+        主要是递归的性能问题和血缘的配置问题
         Args:
             lineage_file: 血缘关系CSV文件路径
             CSV格式：source_asset_id, target_asset_id, lineage_type, 

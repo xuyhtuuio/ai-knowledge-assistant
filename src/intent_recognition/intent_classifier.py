@@ -51,7 +51,6 @@ class IntentClassifier:
         logger.info(f"初始化意图识别分类器，设备: {self.device}")
 
     def load_model(self):
-        """加载模型（延迟加载）"""
         if self.model is not None:
             return
 
@@ -258,22 +257,6 @@ class IntentClassifier:
         )
 
         return intent_result
-
-    def batch_predict(self, queries: List[str]) -> List[IntentResult]:
-        """
-        批量预测
-
-        Args:
-            queries: 查询列表
-
-        Returns:
-            IntentResult列表
-        """
-        results = []
-        for query in queries:
-            result = self.predict(query)
-            results.append(result)
-        return results
 
 
 if __name__ == "__main__":

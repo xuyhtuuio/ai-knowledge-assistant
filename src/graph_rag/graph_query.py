@@ -139,6 +139,9 @@ class GraphQuery:
         if 'FilterCondition' in slots:
             filter_cond = slots['FilterCondition'][0]
             # TODO: 需要实现FilterCondition解析器
+            
+            
+            
             if '五星' in filter_cond:
                 conditions.append('a.star_level = "五星"')
             elif '>' in filter_cond or '<' in filter_cond:
