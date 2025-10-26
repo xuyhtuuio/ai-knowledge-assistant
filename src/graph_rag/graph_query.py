@@ -34,8 +34,19 @@ class GraphQuery:
         # 连接Neo4j
         self.driver = None
         self.connect_neo4j()
+        
+        # 意图到查询生成方法
+        self._intent_to_cypher_generator = {
+            IntentType.ASSET_BASIC_SEARCH: self._generate_basic_search_cypher,
+            IntentType.ASSET_METADATA_QUERY: self._generate_metadata_query_cypher,
+            IntentType.ASSET_QUALITY_VALUE_QUERY: self._generate_quality_value_cypher,
+            IntentType.ASSET_LINEAGE_QUERY: self._generate_lineage_query_cypher,
+            IntentType.ASSET_USAGE_QUERY: self._generate_usage_query_cypher,
+            IntentType.SCENARIO_RECOMMENDATION: self._generate_scenario_recommendation_cypher,
+            IntentType.ASSET_COMPARISON: self._generate_comparison_cypher,
+            IntentType.PLATFORM_HELP: lambda slots: ""  # 平台帮助不需要查询图谱
+        }
 
-        logger.info("图谱查询器初始化完成（支持8大意图）")
 
     def connect_neo4j(self):
         """连接Neo4j数据库"""
@@ -56,6 +67,8 @@ class GraphQuery:
         if self.driver:
             self.driver.close()
             logger.info("Neo4j连接已关闭")
+
+
 
     def _extract_slots(self, intent_result: IntentResult) -> Dict[str, List[str]]:
         """
@@ -88,31 +101,11 @@ class GraphQuery:
         intent = intent_result.intent
         slots = self._extract_slots(intent_result)
 
-        # 根据意图类型生成不同的Cypher
-        if intent == IntentType.ASSET_BASIC_SEARCH:
-            return self._generate_basic_search_cypher(slots)
+        # 使用字典映射
+        cypher_generator = self._intent_to_cypher_generator.get(intent)
         
-        elif intent == IntentType.ASSET_METADATA_QUERY:
-            return self._generate_metadata_query_cypher(slots)
-        
-        elif intent == IntentType.ASSET_QUALITY_VALUE_QUERY:
-            return self._generate_quality_value_cypher(slots)
-        
-        elif intent == IntentType.ASSET_LINEAGE_QUERY:
-            return self._generate_lineage_query_cypher(slots)
-        
-        elif intent == IntentType.ASSET_USAGE_QUERY:
-            return self._generate_usage_query_cypher(slots)
-        
-        elif intent == IntentType.SCENARIO_RECOMMENDATION:
-            return self._generate_scenario_recommendation_cypher(slots)
-        
-        elif intent == IntentType.ASSET_COMPARISON:
-            return self._generate_comparison_cypher(slots)
-        
-        elif intent == IntentType.PLATFORM_HELP:
-            return ""  # 平台帮助不需要查询图谱
-        
+        if cypher_generator:
+            return cypher_generator(slots)
         else:
             logger.warning(f"未知意图类型: {intent}")
             return ""
@@ -288,15 +281,12 @@ class GraphQuery:
         """
         【TODO】生成血缘查询Cypher
         
-        需要实现：
         1. 查询资产的上游依赖（递归）
         2. 查询资产的下游应用（递归）
         3. 查询字段级血缘
         4. 血缘路径分析
         
-        目前返回简化版本（仅支持直接血缘）
         """
-        logger.warning("血缘关系查询尚未完整实现，目前只支持简化查询")
         
         if 'AssetName' in slots:
             asset_name = slots['AssetName'][0]
@@ -304,6 +294,9 @@ class GraphQuery:
             # 简化版：只查询直接上下游（需要LineageEdge才能完整实现）
             cypher = f"""
             // TODO: 实现完整的血缘查询（需要LineageEdge中间节点）
+            
+            
+            
             MATCH (a:Asset {{name: "{asset_name}"}})
             OPTIONAL MATCH (a)-[:DEPENDS_ON]->(upstream:Asset)
             OPTIONAL MATCH (a)<-[:DEPENDS_ON]-(downstream:Asset)
@@ -320,7 +313,11 @@ class GraphQuery:
     def _generate_usage_query_cypher(self, slots: Dict[str, List[str]]) -> str:
         """
         生成使用情况查询Cypher
-        支持槽位：AssetName, UserStatus（我收藏的、我订阅的）
+        支持槽位：AssetName, UserStatus（我收藏的、我订阅的、我下载的等）
+        
+        设计说明：
+        - 核心动作（收藏、订阅、创建）：使用专用关系类型
+        - 扩展动作（访问、下载、分享等）：使用PERFORMED_ACTION统一关系
         """
         # 槽位9: UserStatus
         if 'UserStatus' in slots:
@@ -329,20 +326,36 @@ class GraphQuery:
             # TODO: 需要获取当前用户ID（从session或context）
             user_id = "current_user"  # 占位符
             
-            if '收藏' in user_status:
+            # 核心动作映射（使用专用关系）
+            core_actions = {
+                '收藏': 'FAVORITED',
+                '订阅': 'SUBSCRIBED',
+                '创建': 'CREATED'
+            }
+            
+            # 检查是否为核心动作
+            matched_action = None
+            for keyword, relation_type in core_actions.items():
+                if keyword in user_status:
+                    matched_action = relation_type
+                    break
+            
+            if matched_action:
+                # 核心动作：使用专用关系
                 cypher = f"""
-                MATCH (u:User {{user_id: "{user_id}"}})-[:FAVORITED]->(a:Asset)
+                MATCH (u:User {{user_id: "{user_id}"}})-[:{matched_action}]->(a:Asset)
                 RETURN a.name AS name, a.description AS description,
                        a.star_level AS star_level
                 """
-            elif '订阅' in user_status:
-                cypher = f"""
-                MATCH (u:User {{user_id: "{user_id}"}})-[:SUBSCRIBED]->(a:Asset)
-                RETURN a.name AS name, a.description AS description,
-                       a.status AS status
-                """
             else:
-                cypher = ""
+                # 扩展动作：使用PERFORMED_ACTION统一关系
+                cypher = f"""
+                MATCH (u:User {{user_id: "{user_id}"}})
+                      -[r:PERFORMED_ACTION {{action_type: "{user_status}"}}]->
+                      (a:Asset)
+                RETURN a.name AS name, a.description AS description,
+                       r.time AS action_time, r.metadata AS metadata
+                """
         elif 'AssetName' in slots:
             # 查询特定资产的使用情况
             asset_name = slots['AssetName'][0]
@@ -445,6 +458,9 @@ class GraphQuery:
                 conditions.append(f'd.name = "{slots["BusinessDomain"][0]}"')
             if 'FilterCondition' in slots:
                 filter_cond = slots['FilterCondition'][0]
+                
+                
+                
                 if '五星' in filter_cond:
                     conditions.append('a.star_level = "五星"')
             
@@ -513,7 +529,7 @@ class GraphQuery:
 
     def format_context(self, query_results: List[Dict[str, Any]], intent: IntentType) -> str:
         """
-        将查询结果格式化为上下文文本
+        将查询结果格式化为上下文文本（使用策略模式）
 
         Args:
             query_results: 查询结果
@@ -525,89 +541,118 @@ class GraphQuery:
         if not query_results:
             return "知识库中暂无相关信息。"
 
+        # 意图到格式化方法的映射
+        formatters = {
+            IntentType.ASSET_BASIC_SEARCH: self._format_basic_search_context,
+            IntentType.ASSET_METADATA_QUERY: self._format_metadata_context,
+            IntentType.ASSET_QUALITY_VALUE_QUERY: self._format_quality_value_context,
+            IntentType.ASSET_LINEAGE_QUERY: self._format_lineage_context,
+            IntentType.ASSET_USAGE_QUERY: self._format_usage_context,
+            IntentType.SCENARIO_RECOMMENDATION: self._format_basic_search_context,  # 复用基础检索格式
+            IntentType.ASSET_COMPARISON: self._format_comparison_context,
+        }
+        
+        formatter = formatters.get(intent, self._format_generic_context)
+        return formatter(query_results)
+    
+    
+    
+    
+    # ========== 上下文格式化辅助方法 ==========
+    
+    def _format_basic_search_context(self, query_results: List[Dict[str, Any]]) -> str:
+        """格式化基础检索结果"""
+        context_lines = ["检索到以下资产：\n"]
+        for idx, record in enumerate(query_results, 1):
+            context_lines.append(f"{idx}. 资产名称: {record.get('name', 'N/A')}")
+            if 'description' in record:
+                context_lines.append(f"   描述: {record.get('description', 'N/A')}")
+            if 'type' in record:
+                context_lines.append(f"   类型: {record.get('type', 'N/A')}")
+            if 'star_level' in record:
+                context_lines.append(f"   星级: {record.get('star_level', 'N/A')}")
+            context_lines.append("")
+        return "\n".join(context_lines)
+    
+    def _format_metadata_context(self, query_results: List[Dict[str, Any]]) -> str:
+        """格式化元数据查询结果"""
         context_lines = []
-
-        # Intent 31/36: 基础检索/场景推荐
-        if intent in [IntentType.ASSET_BASIC_SEARCH, IntentType.SCENARIO_RECOMMENDATION]:
-            context_lines.append("检索到以下资产：\n")
-            for idx, record in enumerate(query_results, 1):
-                context_lines.append(f"{idx}. 资产名称: {record.get('name', 'N/A')}")
-                if 'description' in record:
-                    context_lines.append(f"   描述: {record.get('description', 'N/A')}")
-                if 'type' in record:
-                    context_lines.append(f"   类型: {record.get('type', 'N/A')}")
-                if 'star_level' in record:
-                    context_lines.append(f"   星级: {record.get('star_level', 'N/A')}")
-                context_lines.append("")
-
-        # Intent 32: 元数据查询
-        elif intent == IntentType.ASSET_METADATA_QUERY:
+        for record in query_results:
+            context_lines.append("资产元数据信息：")
+            for key, value in record.items():
+                if value:
+                    context_lines.append(f"  {key}: {value}")
+        return "\n".join(context_lines)
+    
+    def _format_quality_value_context(self, query_results: List[Dict[str, Any]]) -> str:
+        """格式化质量价值查询结果"""
+        context_lines = ["资产质量与价值信息：\n"]
+        for idx, record in enumerate(query_results, 1):
+            context_lines.append(f"{idx}. {record.get('name', 'N/A')}")
+            context_lines.append(f"   星级: {record.get('star_level', 'N/A')}")
+            context_lines.append(f"   价值评分: {record.get('value_score', 'N/A')}")
+            context_lines.append("")
+        return "\n".join(context_lines)
+    
+    def _format_lineage_context(self, query_results: List[Dict[str, Any]]) -> str:
+        """格式化血缘关系查询结果"""
+        context_lines = []
+        for record in query_results:
+            context_lines.append(f"资产: {record.get('asset_name', 'N/A')}")
+            if 'upstream_assets' in record:
+                upstream = ', '.join(record['upstream_assets']) if record['upstream_assets'] else '无'
+                context_lines.append(f"  上游资产: {upstream}")
+            if 'downstream_assets' in record:
+                downstream = ', '.join(record['downstream_assets']) if record['downstream_assets'] else '无'
+                context_lines.append(f"  下游资产: {downstream}")
+        return "\n".join(context_lines)
+    
+    def _format_usage_context(self, query_results: List[Dict[str, Any]]) -> str:
+        """格式化使用情况查询结果"""
+        context_lines = ["资产使用情况：\n"]
+        for idx, record in enumerate(query_results, 1):
+            context_lines.append(f"{idx}. {record.get('name', record)}")
+            for key, value in record.items():
+                if key != 'name' and value:
+                    context_lines.append(f"   {key}: {value}")
+            context_lines.append("")
+        return "\n".join(context_lines)
+    
+    def _format_comparison_context(self, query_results: List[Dict[str, Any]]) -> str:
+        """格式化对比查询结果"""
+        context_lines = []
+        
+        if any('asset1_name' in record for record in query_results):
+            # 资产对比
             for record in query_results:
-                context_lines.append("资产元数据信息：")
-                for key, value in record.items():
-                    if value:
-                        context_lines.append(f"  {key}: {value}")
-
-        # Intent 33: 质量价值查询
-        elif intent == IntentType.ASSET_QUALITY_VALUE_QUERY:
-            context_lines.append("资产质量与价值信息：\n")
+                context_lines.append("资产对比结果：")
+                context_lines.append(f"\n资产1: {record.get('asset1_name', 'N/A')}")
+                context_lines.append(f"  描述: {record.get('asset1_description', 'N/A')}")
+                context_lines.append(f"  价值评分: {record.get('asset1_value_score', 'N/A')}")
+                context_lines.append(f"\n资产2: {record.get('asset2_name', 'N/A')}")
+                context_lines.append(f"  描述: {record.get('asset2_description', 'N/A')}")
+                context_lines.append(f"  价值评分: {record.get('asset2_value_score', 'N/A')}")
+        else:
+            # 复合筛选
+            context_lines.append("筛选结果：\n")
             for idx, record in enumerate(query_results, 1):
                 context_lines.append(f"{idx}. {record.get('name', 'N/A')}")
-                context_lines.append(f"   星级: {record.get('star_level', 'N/A')}")
-                context_lines.append(f"   价值评分: {record.get('value_score', 'N/A')}")
-                context_lines.append("")
-
-        # Intent 34: 血缘查询
-        elif intent == IntentType.ASSET_LINEAGE_QUERY:
-            for record in query_results:
-                context_lines.append(f"资产: {record.get('asset_name', 'N/A')}")
-                if 'upstream_assets' in record:
-                    context_lines.append(f"  上游资产: {', '.join(record['upstream_assets']) if record['upstream_assets'] else '无'}")
-                if 'downstream_assets' in record:
-                    context_lines.append(f"  下游资产: {', '.join(record['downstream_assets']) if record['downstream_assets'] else '无'}")
-
-        # Intent 35: 使用查询
-        elif intent == IntentType.ASSET_USAGE_QUERY:
-            context_lines.append("资产使用情况：\n")
-            for idx, record in enumerate(query_results, 1):
-                context_lines.append(f"{idx}. {record.get('name', record)}")
                 for key, value in record.items():
                     if key != 'name' and value:
                         context_lines.append(f"   {key}: {value}")
                 context_lines.append("")
-
-        # Intent 37: 对比查询
-        elif intent == IntentType.ASSET_COMPARISON:
-            if any('asset1_name' in record for record in query_results):
-                # 资产对比
-                for record in query_results:
-                    context_lines.append("资产对比结果：")
-                    context_lines.append(f"\n资产1: {record.get('asset1_name', 'N/A')}")
-                    context_lines.append(f"  描述: {record.get('asset1_description', 'N/A')}")
-                    context_lines.append(f"  价值评分: {record.get('asset1_value_score', 'N/A')}")
-                    context_lines.append(f"\n资产2: {record.get('asset2_name', 'N/A')}")
-                    context_lines.append(f"  描述: {record.get('asset2_description', 'N/A')}")
-                    context_lines.append(f"  价值评分: {record.get('asset2_value_score', 'N/A')}")
-            else:
-                # 复合筛选
-                context_lines.append("筛选结果：\n")
-                for idx, record in enumerate(query_results, 1):
-                    context_lines.append(f"{idx}. {record.get('name', 'N/A')}")
-                    for key, value in record.items():
-                        if key != 'name' and value:
-                            context_lines.append(f"   {key}: {value}")
-                    context_lines.append("")
-
-        else:
-            # 通用格式
-            for idx, record in enumerate(query_results, 1):
-                context_lines.append(f"\n结果 {idx}:")
-                for key, value in record.items():
-                    if value:
-                        context_lines.append(f"  {key}: {value}")
-
-        context = "\n".join(context_lines)
-        return context
+        
+        return "\n".join(context_lines)
+    
+    def _format_generic_context(self, query_results: List[Dict[str, Any]]) -> str:
+        """通用格式化方法"""
+        context_lines = []
+        for idx, record in enumerate(query_results, 1):
+            context_lines.append(f"\n结果 {idx}:")
+            for key, value in record.items():
+                if value:
+                    context_lines.append(f"  {key}: {value}")
+        return "\n".join(context_lines)
 
 
 if __name__ == "__main__":

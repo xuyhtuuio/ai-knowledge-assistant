@@ -31,6 +31,9 @@ class Orchestrator:
             config_path: 配置文件路径
         """
         logger.info("正在初始化编排服务...")
+        
+        
+        # 这里后续优化引入工厂模式，这里先简单实现
 
         # 初始化各个模块
         self.intent_classifier = IntentClassifier(config_path)

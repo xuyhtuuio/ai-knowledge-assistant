@@ -1,0 +1,294 @@
+# 知识图谱 Schema 配置文件
+# 用于配置驱动的图谱构建
+
+# ========== 节点类型配置 ==========
+node_types:
+  Asset:
+    id_field: asset_id
+    label: Asset
+    properties:
+      - name: asset_id
+        required: true
+      - name: name
+        required: true
+      - name: description
+      - name: owner
+      - name: type  # 槽位6: AssetType
+      - name: version
+      - name: status
+      - name: star_level  # 槽位8: FilterCondition（五星）
+      - name: value_score
+        type: int
+      - name: update_time
+      - name: business_purpose  # 槽位2: MetadataItem（业务口径）
+      - name: technical_spec    # 槽位2: MetadataItem（技术口径）
+    
+  Field:
+    id_field: field_id
+    label: Field
+    properties:
+      - name: field_id
+        required: true
+      - name: name
+        required: true
+      - name: data_type
+      - name: description
+      - name: is_primary
+        type: bool
+      - name: is_sensitive
+        type: bool
+    
+  BusinessDomain:
+    id_field: domain_id
+    label: BusinessDomain
+    properties:
+      - name: domain_id
+        required: true
+      - name: name
+        required: true
+      - name: description
+      - name: parent_domain_id
+    
+  BusinessZone:
+    id_field: zone_id
+    label: BusinessZone
+    properties:
+      - name: zone_id
+        required: true
+      - name: name
+        required: true
+      - name: description
+      - name: industry
+    
+  Scenario:
+    id_field: scenario_id
+    label: Scenario
+    properties:
+      - name: scenario_id
+        required: true
+      - name: name
+        required: true
+      - name: description
+      - name: business_domain
+      - name: status
+    
+  Concept:
+    id_field: concept_id
+    label: Concept
+    properties:
+      - name: concept_id
+        required: true
+      - name: name
+        required: true
+      - name: type
+        default: "业务指标"
+      - name: definition
+      - name: description
+    
+  User:
+    id_field: user_id
+    label: User
+    properties:
+      - name: user_id
+        required: true
+      - name: name
+        required: true
+      - name: role
+      - name: org_id
+      - name: email
+      - name: department
+    
+  Org:
+    id_field: org_id
+    label: Org
+    properties:
+      - name: org_id
+        required: true
+      - name: name
+        required: true
+      - name: parent_org_id
+      - name: description
+      - name: type
+    
+  Hotspot:
+    id_field: hotspot_id
+    label: Hotspot
+    properties:
+      - name: hotspot_id
+        required: true
+      - name: title
+        required: true
+      - name: summary
+      - name: publish_date
+      - name: source
+      - name: category
+
+# ========== 关系类型配置 ==========
+relationship_types:
+  HAS_FIELD:
+    source: Asset
+    target: Field
+    properties: []
+    description: "资产包含字段"
+    
+  BELONGS_TO:
+    source: Asset
+    target: BusinessDomain
+    properties: []
+    description: "资产属于业务域"
+    
+  IN_ZONE:
+    source: Asset
+    target: BusinessZone
+    properties:
+      - name: added_time
+    description: "资产在业务专区中"
+    
+  CONTAINS_SCENARIO:
+    source: BusinessZone
+    target: Scenario
+    properties: []
+    description: "专区包含场景"
+    
+  USES_ASSET:
+    source: Scenario
+    target: Asset
+    properties:
+      - name: usage_type
+      - name: importance
+    description: "场景使用资产"
+    
+  IMPLEMENTED_BY:
+    source: Concept
+    target: Asset
+    properties: []
+    description: "业务概念由资产实现"
+    
+  MAPPED_TO:
+    source: Concept
+    target: Field
+    properties: []
+    description: "业务概念映射到字段"
+    
+  # ========== 核心用户动作（高频，专用关系）==========
+  FAVORITED:
+    source: User
+    target: Asset
+    properties:
+      - name: time
+        type: datetime
+    description: "用户收藏资产（核心功能）"
+    
+  SUBSCRIBED:
+    source: User
+    target: Asset
+    properties:
+      - name: status
+      - name: time
+        type: datetime
+    description: "用户订阅资产（核心功能）"
+    
+  CREATED:
+    source: User
+    target: Asset
+    properties:
+      - name: time
+        type: datetime
+    description: "用户创建资产（核心功能）"
+    
+  MANAGED_BY:
+    source: Asset
+    target: User
+    properties: []
+    description: "资产管理者（核心功能）"
+  
+  # ========== 扩展用户动作（低频，统一关系）==========
+  PERFORMED_ACTION:
+    source: User
+    target: Asset
+    properties:
+      - name: action_type
+        required: true
+        # 可能的值：访问、下载、分享、评论、点赞、修改、删除、归档、复制、申请权限等
+      - name: time
+        type: datetime
+      - name: metadata
+        # JSON格式，存储动作相关的扩展信息
+    description: "用户对资产执行的其他动作（可扩展）"
+    
+  OWNED_BY:
+    source: Asset
+    target: Org
+    properties: []
+    description: "资产所属组织"
+    
+  BELONGS_TO_ORG:
+    source: User
+    target: Org
+    properties:
+      - name: join_date
+    description: "用户属于组织"
+    
+  DIRECTLY_IMPACTS:
+    source: Hotspot
+    target: Asset
+    properties:
+      - name: impact_type
+      - name: description
+    description: "热点直接影响资产"
+
+# ========== 特殊关系配置（需要中间节点）==========
+special_relationships:
+  AssetUsage:
+    description: "资产在场景中的使用实例（M:M关系中间节点）"
+    source_relation:
+      from: Scenario
+      to: AssetUsage
+      type: INCLUDES_USAGE
+    target_relation:
+      from: Asset
+      to: AssetUsage
+      type: IS_USED_IN
+    properties:
+      - name: usage_id
+        required: true
+      - name: role
+      - name: status
+      - name: description
+
+# ========== 索引配置 ==========
+indexes:
+  - node_type: Asset
+    fields: [name]
+    type: index
+  - node_type: Asset
+    fields: [type, star_level]
+    type: composite_index
+  - node_type: Asset
+    fields: [value_score]
+    type: range_index
+  - node_type: Field
+    fields: [name]
+    type: index
+  - node_type: BusinessDomain
+    fields: [name]
+    type: index
+  - node_type: BusinessZone
+    fields: [name]
+    type: index
+  - node_type: Scenario
+    fields: [name]
+    type: index
+  - node_type: Concept
+    fields: [name]
+    type: index
+  - node_type: User
+    fields: [name]
+    type: index
+  - node_type: Org
+    fields: [name]
+    type: index
+  - node_type: Hotspot
+    fields: [title]
+    type: index
+

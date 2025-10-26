@@ -162,30 +162,3 @@ relation_extraction_prompt: |
     "relations": [{"source": "XX系统", "target": "新员工入职", "type": "USED_IN", "properties": {...}}]
   }
 
-# ========================================
-# Cypher查询生成（已在代码中实现）
-# ========================================
-# 注意：Cypher查询生成逻辑已经在 graph_query.py 中硬编码实现
-# 不再使用Prompt生成，以确保查询的准确性和性能
-
-# 示例Cypher（仅供参考）：
-# Intent 31 (基础检索):
-#   MATCH (a:Asset) WHERE a.type = "标签" AND a.star_level = "五星" RETURN a.name, a.description
-#
-# Intent 32 (元数据查询):
-#   MATCH (a:Asset {name: "XX资产"}) RETURN a.business_purpose, a.technical_spec, a.owner
-#
-# Intent 33 (质量价值):
-#   MATCH (a:Asset {name: "XX资产"}) RETURN a.star_level, a.value_score
-#
-# Intent 34 (血缘关系):
-#   【TODO】需要实现LineageEdge中间节点支持递归查询
-#
-# Intent 35 (使用查询):
-#   MATCH (u:User {user_id: "xxx"})-[:FAVORITED]->(a:Asset) RETURN a.name
-#
-# Intent 36 (场景推荐):
-#   MATCH (z:BusinessZone {name: "公众智慧运营"})-[:CONTAINS_SCENARIO]->()-[:USES_ASSET]->(a:Asset) RETURN a.name
-#
-# Intent 37 (资产对比):
-#   MATCH (a1:Asset {name: "XX"}), (a2:Asset {name: "YY"}) RETURN a1, a2
