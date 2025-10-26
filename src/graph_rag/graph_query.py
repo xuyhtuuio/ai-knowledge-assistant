@@ -198,6 +198,9 @@ class GraphQuery:
             metadata_item = slots.get('MetadataItem', ['所有'])[0]
             
             # TODO: 同义词映射（将"业务解释"映射为"business_purpose"）
+            
+            
+            
             metadata_mapping = {
                 '业务口径': 'business_purpose',
                 '技术口径': 'technical_spec',
