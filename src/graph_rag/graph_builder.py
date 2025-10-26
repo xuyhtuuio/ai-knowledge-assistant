@@ -40,7 +40,6 @@ class GraphBuilder:
         self.driver = None
         self.connect_neo4j()
         
-        logger.info("图谱构建器 V2.0 初始化完成")
     
     def connect_neo4j(self):
         """连接Neo4j数据库"""

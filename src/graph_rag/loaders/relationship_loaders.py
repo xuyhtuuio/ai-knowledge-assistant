@@ -29,6 +29,7 @@ class SimpleRelationshipLoader(RelationshipLoader):
         
         CSV格式：source_id, target_id, [关系属性...]
         """
+        logger.info(f"加载 {self.rel_type} 关系: {file_path}")
         
         df = self._read_data(file_path)
         count = 0
@@ -136,12 +137,14 @@ class UniversalRelationshipLoader(RelationshipLoader):
         super().__init__({})
         self.schema_config = schema_config
     
+    
     def load(self, file_path: str, session: Session) -> int:
         """
-        加载通用关系
         
-        CSV格式：source_type, source_id, target_type, target_id, relationship_type, [properties]
+        CSV格式：source_type, source_id, target_type, target_id, relationship_type, [动态属性列...]
+        属性列会根据 schema 配置自动识别和加载
         """
+        logger.info(f"加载通用关系: {file_path}")
         
         df = self._read_data(file_path)
         count = 0
@@ -164,10 +167,27 @@ class UniversalRelationshipLoader(RelationshipLoader):
                     MERGE (s)-[r:{rel_type}]->(t)
                 """
                 
-                session.run(cypher, source_id=source_id, target_id=target_id)
+                # 动态处理关系属性
+                rel_props = {}
+                # 从 schema 获取该关系类型的属性配置
+                rel_config = self.schema_config.get('relationship_types', {}).get(rel_type, {})
+                prop_configs = rel_config.get('properties', [])
+                
+                # 遍历配置的属性
+                for prop_config in prop_configs:
+                    prop_name = prop_config['name']
+                    # 检查 CSV 中是否有这个属性列
+                    if prop_name in row and pd.notna(row[prop_name]):
+                        # 处理空字符串
+                        if isinstance(row[prop_name], str) and row[prop_name].strip() == '':
+                            continue
+                        rel_props[prop_name] = row[prop_name]
+                        cypher += f"\nSET r.{prop_name} = ${prop_name}"
+                
+                session.run(cypher, source_id=source_id, target_id=target_id, **rel_props)
                 count += 1
             except Exception as e:
-                logger.warning(f"创建关系失败 {source_id}->{target_id}: {str(e)}")
+                logger.warning(f"创建关系失败 {source_type}:{source_id}-[{rel_type}]->{target_type}:{target_id}: {str(e)}")
         
         logger.info(f"成功创建 {count} 个通用关系")
         return count

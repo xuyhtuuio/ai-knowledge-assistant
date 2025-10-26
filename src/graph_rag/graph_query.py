@@ -281,12 +281,15 @@ class GraphQuery:
         """
         【TODO】生成血缘查询Cypher
         
+        需要实现：
         1. 查询资产的上游依赖（递归）
         2. 查询资产的下游应用（递归）
         3. 查询字段级血缘
         4. 血缘路径分析
         
+        目前返回简化版本（仅支持直接血缘）
         """
+        logger.warning("血缘关系查询尚未完整实现，目前只支持简化查询")
         
         if 'AssetName' in slots:
             asset_name = slots['AssetName'][0]
@@ -294,9 +297,6 @@ class GraphQuery:
             # 简化版：只查询直接上下游（需要LineageEdge才能完整实现）
             cypher = f"""
             // TODO: 实现完整的血缘查询（需要LineageEdge中间节点）
-            
-            
-            
             MATCH (a:Asset {{name: "{asset_name}"}})
             OPTIONAL MATCH (a)-[:DEPENDS_ON]->(upstream:Asset)
             OPTIONAL MATCH (a)<-[:DEPENDS_ON]-(downstream:Asset)
@@ -458,9 +458,6 @@ class GraphQuery:
                 conditions.append(f'd.name = "{slots["BusinessDomain"][0]}"')
             if 'FilterCondition' in slots:
                 filter_cond = slots['FilterCondition'][0]
-                
-                
-                
                 if '五星' in filter_cond:
                     conditions.append('a.star_level = "五星"')
             
@@ -554,9 +551,6 @@ class GraphQuery:
         
         formatter = formatters.get(intent, self._format_generic_context)
         return formatter(query_results)
-    
-    
-    
     
     # ========== 上下文格式化辅助方法 ==========
     
