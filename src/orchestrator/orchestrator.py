@@ -76,21 +76,23 @@ class Orchestrator:
             intent_time = time.time() - intent_start
             logger.info(f"[步骤1] 意图识别完成 (耗时: {intent_time:.2f}s)")
             logger.info(f"  - 意图: {intent_result.intent}")
-            logger.info(f"  - 实体: {[(e.type, e.value) for e in intent_result.entities]}")
-            logger.info(f"  - 置信度: {intent_result.confidence}")
+            logger.info(f"  - 槽位列表: {intent_result.slots}")
+            
 
             # ========== 步骤2: 路由控制 ==========
             logger.info("[步骤2] 路由控制中...")
+            logger.info(f"  - 意图: {intent_result.intent.value}")
 
             context = ""
             graph_results = []
 
-            # 判断是否为OOD（域外问题）
-            if intent_result.intent == IntentType.OOD:
-                logger.info("  - 路由: OOD (域外问题) -> 通用对话模块")
+            # 判断是否为平台帮助（Intent 38）
+            if intent_result.intent == IntentType.PLATFORM_HELP:
+                logger.info("  - 路由: Intent 38 (平台帮助) -> 直接生成帮助响应")
                 
-                # 直接生成OOD响应
+                # 直接生成平台帮助响应
                 generation_start = time.time()
+                # 可以从prompt_config.yaml读取帮助模板，这里简化处理
                 answer_result = self.answer_generator.generate_ood_response(user_query)
                 generation_time = time.time() - generation_start
 
@@ -107,7 +109,7 @@ class Orchestrator:
                     "context": "",
                     "graph_results": [],
                     "has_context": False,
-                    "is_ood": True,
+                    "is_platform_help": True,
                     "timing": {
                         "intent_recognition": intent_time,
                         "graph_query": 0,
@@ -121,6 +123,7 @@ class Orchestrator:
                 }
 
             else:
+                # 其他7个意图都需要GraphRAG查询
                 logger.info(f"  - 路由: {intent_result.intent.value} -> GraphRAG模块")
 
                 # ========== 步骤3: GraphRAG检索 ==========
@@ -168,6 +171,7 @@ class Orchestrator:
                     "query": user_query,
                     "answer": answer_result['answer'],
                     "intent": intent_result.intent.value,
+                    "intent_name": self._get_intent_name(intent_result.intent),
                     "entities": [
                         {"type": e.type.value, "value": e.value}
                         for e in intent_result.entities
@@ -175,7 +179,7 @@ class Orchestrator:
                     "context": context,
                     "graph_results": graph_results,
                     "has_context": answer_result['has_context'],
-                    "is_ood": False,
+                    "is_platform_help": False,
                     "timing": {
                         "intent_recognition": intent_time,
                         "graph_query": graph_time,
@@ -184,8 +188,7 @@ class Orchestrator:
                     },
                     "metadata": {
                         "request_id": self.request_count,
-                        "timestamp": datetime.now().isoformat(),
-                        "confidence": intent_result.confidence
+                        "timestamp": datetime.now().isoformat()
                     }
                 }
 
@@ -237,6 +240,23 @@ class Orchestrator:
         minutes = int((seconds % 3600) // 60)
         secs = int(seconds % 60)
         return f"{hours}h {minutes}m {secs}s"
+
+    def _get_intent_name(self, intent: IntentType) -> str:
+        """
+        获取意图的中文名称
+        【新增】支持8大意图的名称映射
+        """
+        intent_names = {
+            IntentType.ASSET_BASIC_SEARCH: "资产基础检索",
+            IntentType.ASSET_METADATA_QUERY: "资产元数据查询",
+            IntentType.ASSET_QUALITY_VALUE_QUERY: "资产质量与价值查询",
+            IntentType.ASSET_LINEAGE_QUERY: "资产血缘关系查询",
+            IntentType.ASSET_USAGE_QUERY: "资产使用与工单查询",
+            IntentType.SCENARIO_RECOMMENDATION: "场景与标签推荐",
+            IntentType.ASSET_COMPARISON: "资产复合对比与筛选",
+            IntentType.PLATFORM_HELP: "平台规则与帮助"
+        }
+        return intent_names.get(intent, "未知意图")
 
     def close(self):
         """关闭服务，释放资源"""

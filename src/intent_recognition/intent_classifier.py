@@ -98,17 +98,24 @@ class IntentClassifier:
     def _parse_output(self, output_text: str) -> Dict:
         """
         解析模型输出的JSON
+        - 格式：{"intent": "31", "slots": {"AssetType": "标签"}}
 
         Args:
             output_text: 模型输出文本
 
         Returns:
-            解析后的字典
+            解析后的字典（统一转换为entities数组格式）
         """
         try:
             # 尝试直接解析JSON
             result = json.loads(output_text)
+            
+            # 【新增】如果是slots格式，转换为entities格式
+            if "slots" in result and "entities" not in result:
+                result = self._convert_slots_to_entities(result)
+            
             return result
+            
         except json.JSONDecodeError:
             # 如果失败，尝试提取JSON部分
             try:
@@ -119,13 +126,57 @@ class IntentClassifier:
                 if start_idx != -1 and end_idx != -1:
                     json_str = output_text[start_idx:end_idx + 1]
                     result = json.loads(json_str)
+                    
+                    # 【新增】格式转换
+                    if "slots" in result and "entities" not in result:
+                        result = self._convert_slots_to_entities(result)
+                    
                     return result
             except Exception as e:
                 logger.error(f"JSON解析失败: {str(e)}")
 
-            # 如果仍然失败，返回OOD
-            logger.warning(f"无法解析输出，返回OOD: {output_text}")
-            return {"intent": "OOD", "entities": []}
+            # 如果仍然失败，返回平台帮助
+            logger.warning(f"无法解析输出，返回平台帮助: {output_text}")
+            return {"intent": "38", "entities": []}
+    
+    def _convert_slots_to_entities(self, result: Dict) -> Dict:
+        """
+        将slots对象格式转换为entities数组格式
+        
+        输入：{"intent": "31", "slots": {"AssetType": "标签", "FilterCondition": "五星"}}
+        输出：{"intent": "31", "entities": [{"type": "AssetType", "value": "标签"}, ...]}
+        
+        Args:
+            result: 包含slots的结果字典
+        
+        Returns:
+            包含entities的结果字典
+        """
+        slots = result.get("slots", {})
+        entities = []
+        
+        for slot_type, slot_value in slots.items():
+            # 如果槽位值是数组（如资产对比时有多个资产）
+            if isinstance(slot_value, list):
+                for value in slot_value:
+                    entities.append({
+                        "type": slot_type,
+                        "value": value
+                    })
+            else:
+                entities.append({
+                    "type": slot_type,
+                    "value": slot_value
+                })
+        
+        # 替换slots为entities
+        result["entities"] = entities
+        if "slots" in result:
+            del result["slots"]
+        
+        logger.debug(f"格式转换: slots -> entities, 共{len(entities)}个槽位")
+        
+        return result
 
     def predict(self, user_query: str) -> IntentResult:
         """
@@ -193,8 +244,7 @@ class IntentClassifier:
             try:
                 entity = Entity(
                     type=get_entity_by_name(entity_dict['type']),
-                    value=entity_dict['value'],
-                    confidence=entity_dict.get('confidence', 1.0)
+                    value=entity_dict['value']
                 )
                 entities.append(entity)
             except Exception as e:
@@ -204,7 +254,6 @@ class IntentClassifier:
         intent_result = IntentResult(
             intent=intent,
             entities=entities,
-            confidence=result_dict.get('confidence', 1.0),
             raw_output=output_text
         )
 
@@ -248,4 +297,3 @@ if __name__ == "__main__":
         result = classifier.predict(query)
         print(f"意图: {result.intent}")
         print(f"实体: {[(e.type, e.value) for e in result.entities]}")
-        print(f"置信度: {result.confidence}")

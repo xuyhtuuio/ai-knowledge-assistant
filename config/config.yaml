@@ -2,11 +2,12 @@
 
 # 系统配置
 system:
-  name: "AI知识助手"
-  version: "1.0.0"
+  name: "数据资产助手"
+  version: "2.0.0"
   environment: "development"  # development, staging, production
   log_level: "INFO"
   log_dir: "./logs"
+  description: "基于8大意图和10大槽位的数据资产知识图谱助手"
 
 # 模型配置
 models:
@@ -52,22 +53,40 @@ data:
   # 增强数据路径
   augmented: "./data/augmented"
 
-# 意图标签配置
+
 intent_labels:
-  - "Query_Asset"          # 查询资产
-  - "Query_Scenario"       # 咨询场景
-  - "Query_Hotspot"        # 了解热点
-  - "Find_Relationship"    # 查找关联关系
-  - "OOD"                  # 域外问题
+  - "31"  # 资产基础检索 (ASSET_BASIC_SEARCH)
+  - "32"  # 资产元数据查询 (ASSET_METADATA_QUERY)
+  - "33"  # 资产质量与价值查询 (ASSET_QUALITY_VALUE_QUERY)
+  - "34"  # 资产血缘关系查询 (ASSET_LINEAGE_QUERY)
+  - "35"  # 资产使用与工单查询 (ASSET_USAGE_QUERY)
+  - "36"  # 场景与标签推荐 (SCENARIO_RECOMMENDATION)
+  - "37"  # 资产复合对比与筛选 (ASSET_COMPARISON)
+  - "38"  # 平台规则与帮助 (PLATFORM_HELP)
 
-# 实体标签配置
-entity_labels:
-  - "Asset"       # 资产名称
-  - "Scenario"    # 场景名称
-  - "Hotspot"     # 热点名称
-  - "Attribute"   # 属性
 
+slot_labels:
+  - "AssetName"          # 槽位1: 核心资产/ID/英文名
+  - "MetadataItem"       # 槽位2: 查询元数据项
+  - "FieldName"          # 槽位3: 字段名称
+  - "CoreDataItem"       # 槽位4: 核心数据项
+  - "BusinessDomain"     # 槽位5: 业务/数据域
+  - "AssetType"          # 槽位6: 资产类型
+  - "BusinessZone"       # 槽位7: 业务专区
+  - "FilterCondition"    # 槽位8: 筛选/限定条件
+  - "UserStatus"         # 槽位9: 用户操作属性
+  - "OrgName/UserName"   # 槽位10: 机构/人员名
+
+# 向后兼容：保留旧的entity_labels别名
+entity_labels: 
+  - "AssetName"
+  - "FieldName"
+  - "BusinessDomain"
+  - "AssetType"
+
+# ========================================
 # 知识图谱配置
+# ========================================
 graph:
   database: "neo4j"  # neo4j, nebula
   neo4j:
@@ -76,25 +95,51 @@ graph:
     password: "your_password"
     database: "neo4j"
 
-  # 图谱Schema
+  #图谱Schema（支持10大槽位）
   schema:
     nodes:
-      - "Asset"
-      - "Scenario"
-      - "Hotspot"
-      - "Keyword"
-      - "AssetUsage"
-      - "AssetCategory"
-      - "ScenarioCategory"
+      # 核心节点
+      - "Asset"              # 资产节点（槽位1: AssetName）
+      - "Field"              # 字段节点（槽位3: FieldName）【新增】
+      - "BusinessDomain"     # 业务域节点（槽位5: BusinessDomain）【新增】
+      - "BusinessZone"       # 业务专区节点（槽位7: BusinessZone）【新增】
+      - "Scenario"           # 场景节点（保留，作为BusinessZone的子节点）
+      - "Concept"            # 业务概念节点（槽位4: CoreDataItem）【新增】
+      - "User"               # 用户节点（槽位9: UserStatus）【新增】
+      - "Org"                # 组织节点（槽位10: OrgName/UserName）【新增】
+      
+      # 辅助节点
+      - "Hotspot"            # 热点节点（保留）
+      - "AssetUsage"         # 资产应用实例（M:M关系中间节点）
+      - "Keyword"            # 关键词节点（可选）
 
     relationships:
-      - "BELONGS_TO"
-      - "MENTIONS"
-      - "HAS_KEYWORD"
-      - "DIRECTLY_IMPACTS"
-      - "RELATED_TO"
-      - "INCLUDES_USAGE"
-      - "IS_USED_IN"
+      # 核心关系
+      - "HAS_FIELD"          # Asset -> Field（资产包含字段）【新增】
+      - "BELONGS_TO"         # Asset -> BusinessDomain（资产属于业务域）
+      - "CONTAINS_SCENARIO"  # BusinessZone -> Scenario（专区包含场景）【新增】
+      - "USES_ASSET"         # Scenario -> Asset（场景使用资产）【新增】
+      - "IMPLEMENTED_BY"     # Concept -> Asset（业务概念由资产实现）【新增】
+      - "MAPPED_TO"          # Concept -> Field（业务概念映射到字段）【新增】
+      
+      # 用户关系（槽位9: UserStatus）【新增】
+      - "FAVORITED"          # User -> Asset（用户收藏资产）
+      - "SUBSCRIBED"         # User -> Asset（用户订阅资产）
+      - "CREATED"            # User -> Asset（用户创建资产）
+      - "MANAGED_BY"         # Asset -> User（资产管理者）
+      - "OWNED_BY"           # Asset -> Org（资产所属组织）
+      
+      # 保留的关系
+      - "MENTIONS"           # Hotspot -> Keyword
+      - "HAS_KEYWORD"        # Asset/Scenario -> Keyword
+      - "DIRECTLY_IMPACTS"   # Hotspot -> Asset
+      - "RELATED_TO"         # 通用关联关系
+      - "INCLUDES_USAGE"     # Scenario -> AssetUsage
+      - "IS_USED_IN"         # Asset -> AssetUsage
+      
+      # 【TODO】血缘关系（未实现）
+      # - "LINEAGE_UPSTREAM"   # Asset -> LineageEdge -> Asset（上游）
+      # - "LINEAGE_DOWNSTREAM" # Asset -> LineageEdge -> Asset（下游）
 
 # 数据增强配置
 data_augmentation:
